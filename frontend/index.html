@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess Analyser</title>
+    <link rel="stylesheet" href="./css/style.css?v=5" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Chess Analyser</h1>
+      <p class="subtitle">Choose a platform and enter your username.</p>
+
+      <form id="profile-form">
+        <fieldset>
+          <legend>Chess platform</legend>
+          <label>
+            <input type="radio" name="platform" value="lichess" checked />
+            Lichess
+          </label>
+          <label>
+            <input type="radio" name="platform" value="chesscom" />
+            Chess.com
+          </label>
+        </fieldset>
+
+        <label class="username-label" for="username">Username</label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          placeholder="Your username"
+          autocomplete="username"
+          required
+        />
+
+        <button type="submit">Continue</button>
+        <p id="form-message" role="status"></p>
+        <section id="stats" aria-live="polite" hidden></section>
+      </form>
+    </main>
+    <script type="module" src="./js/app.js?v=4"></script>
+  </body>
+</html>

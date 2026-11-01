@@ -1,0 +1,53 @@
+# Python virtual environment and local Python version settings
+.venv
+.python-version
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!backend/.env.example
+
+# Python caches and test/type-checking caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# JavaScript dependencies and build output
+node_modules/
+.next/
+out/
+
+# Application data, while keeping directory placeholders
+data/*
+!data/.gitkeep
+
+# Backend data, while keeping the directory placeholder
+backend/data/*
+!backend/data/.gitkeep
+
+# Downloaded or compiled chess engine binaries
+infra/stockfish/*.exe
+infra/stockfish/stockfish
+backend/engine/*.exe
+
+# Generated test and build output
+coverage/
+dist/
+build/
+
+# Local tooling and operating-system files
+.vscode/*
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# Local frontend server output
+.cache/
+.parcel-cache/
+
+# Local development launcher
+start-local.cmd
