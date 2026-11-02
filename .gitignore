@@ -48,6 +48,7 @@ Thumbs.db
 # Local frontend server output
 .cache/
 .parcel-cache/
+.playwright-mcp/
 
 # Local development launcher
 start-local.cmd

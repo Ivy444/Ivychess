@@ -5,13 +5,19 @@ const statsElement = document.querySelector("#stats");
 
 console.info("Ivychess frontend loaded");
 
+const PLATFORM_NAMES = { chesscom: "Chess.com", lichess: "Lichess" };
+
 function formatGameType(value) {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value
+    .replace(/^chess_/, "")
+    .replaceAll("_", " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function renderStats(stats) {
+function renderStats(stats, platformName) {
   if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
-    throw new Error("Chess.com returned an invalid stats response.");
+    throw new Error(`${platformName} returned an invalid stats response.`);
   }
 
   const rows = Object.entries(stats)
@@ -34,7 +40,7 @@ function renderStats(stats) {
   statsElement.innerHTML = `
     <div class="table-wrapper">
       <table>
-        <caption>Chess.com ratings and records</caption>
+        <caption>${platformName} ratings and records</caption>
         <thead><tr>
           <th scope="col">Game type</th><th scope="col">Rating</th>
           <th scope="col">Best</th><th scope="col">Wins</th>
@@ -59,11 +65,6 @@ form.addEventListener("submit", async (event) => {
   statsElement.replaceChildren();
   statsElement.hidden = true;
 
-  if (platform !== "chesscom") {
-    messageElement.textContent = `Ready to analyse ${username} on Lichess.`;
-    return;
-  }
-
   messageElement.textContent = "Loading stats...";
   try {
     const url = `http://localhost:8000/stats?platform=${platform}&username=${encodeURIComponent(username)}`;
@@ -78,7 +79,7 @@ form.addEventListener("submit", async (event) => {
     }
 
     messageElement.textContent = `Stats for ${username}:`;
-    renderStats(result);
+    renderStats(result, PLATFORM_NAMES[platform]);
     statsElement.hidden = false;
   } catch (error) {
     console.error("Could not display player stats:", error);

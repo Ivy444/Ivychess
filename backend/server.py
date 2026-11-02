@@ -6,10 +6,16 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 from api.chesscom import ChessComAPI
+from api.lichess import LichessAPI
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+
+PLATFORMS = {
+    "chesscom": ("Chess.com", ChessComAPI.get_player_stats),
+    "lichess": ("Lichess", LichessAPI.get_player_stats),
+}
 
 
 class StatsHandler(BaseHTTPRequestHandler):
@@ -23,23 +29,29 @@ class StatsHandler(BaseHTTPRequestHandler):
 
         query = parse_qs(request.query)
         username = query.get("username", [""])[0].strip()
+        platform = query.get("platform", ["chesscom"])[0]
 
         if request.path != "/stats" or not username:
             self.send_json({"error": "Username is required."}, 400)
             return
 
+        if platform not in PLATFORMS:
+            self.send_json({"error": f"Unknown platform: {platform}."}, 400)
+            return
+
+        name, get_stats = PLATFORMS[platform]
         try:
-            stats = ChessComAPI.get_player_stats(username)
+            stats = get_stats(username)
         except requests.RequestException:
-            logger.exception("Could not load Chess.com stats for username=%s", username)
+            logger.exception("Could not load %s stats for username=%s", name, username)
             self.send_json(
-                {"error": "Chess.com is temporarily unavailable. Please try again."},
+                {"error": f"{name} is temporarily unavailable. Please try again."},
                 502,
             )
             return
 
         if stats is None:
-            self.send_json({"error": "Chess.com player was not found."}, 404)
+            self.send_json({"error": f"{name} player was not found."}, 404)
             return
 
         self.send_json(stats)
