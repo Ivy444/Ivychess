@@ -3,11 +3,17 @@ const usernameInput = document.querySelector("#username");
 const messageElement = document.querySelector("#form-message");
 const statsElement = document.querySelector("#stats");
 
+console.info("Ivychess frontend loaded");
+
 function formatGameType(value) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function renderStats(stats) {
+  if (!stats || typeof stats !== "object" || Array.isArray(stats)) {
+    throw new Error("Chess.com returned an invalid stats response.");
+  }
+
   const rows = Object.entries(stats)
     .filter(([, data]) => data && typeof data === "object")
     .map(([gameType, data]) => {
@@ -60,19 +66,23 @@ form.addEventListener("submit", async (event) => {
 
   messageElement.textContent = "Loading stats...";
   try {
-    const response = await fetch(
-      `http://localhost:8000/stats?username=${encodeURIComponent(username)}`
-    );
-    const result = await response.json();
+    const url = `http://localhost:8000/stats?platform=${platform}&username=${encodeURIComponent(username)}`;
+    console.info("Requesting player stats:", url);
+    const response = await fetch(url);
+    const responseText = await response.text();
+    console.info("Stats response:", response.status, responseText);
+    const result = JSON.parse(responseText);
 
     if (!response.ok) {
-      throw new Error(result.error);
+      throw new Error(result.error || `Request failed with status ${response.status}.`);
     }
 
     messageElement.textContent = `Stats for ${username}:`;
     renderStats(result);
     statsElement.hidden = false;
   } catch (error) {
-    messageElement.textContent = error.message || "Could not load stats.";
+    console.error("Could not display player stats:", error);
+    messageElement.textContent =
+      error instanceof Error ? error.message : "Could not load stats.";
   }
 });

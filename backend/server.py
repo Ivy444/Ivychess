@@ -1,8 +1,15 @@
 import json
+import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import requests
+
 from api.chesscom import ChessComAPI
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class StatsHandler(BaseHTTPRequestHandler):
@@ -21,9 +28,18 @@ class StatsHandler(BaseHTTPRequestHandler):
             self.send_json({"error": "Username is required."}, 400)
             return
 
-        stats = ChessComAPI.get_player_stats(username)
+        try:
+            stats = ChessComAPI.get_player_stats(username)
+        except requests.RequestException:
+            logger.exception("Could not load Chess.com stats for username=%s", username)
+            self.send_json(
+                {"error": "Chess.com is temporarily unavailable. Please try again."},
+                502,
+            )
+            return
+
         if stats is None:
-            self.send_json({"error": "Player stats could not be found."}, 404)
+            self.send_json({"error": "Chess.com player was not found."}, 404)
             return
 
         self.send_json(stats)
