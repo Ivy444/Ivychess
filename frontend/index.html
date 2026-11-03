@@ -4,41 +4,70 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chess Analyser</title>
-    <link rel="stylesheet" href="./css/style.css?v=5" />
+    <link rel="stylesheet" href="./css/style.css?v=6" />
   </head>
   <body>
     <main class="container">
-      <h1>Chess Analyser</h1>
-      <p class="subtitle">Choose a platform and enter your username.</p>
+      <section id="home-view">
+        <h1>Chess Analyser</h1>
+        <p class="subtitle">Choose a platform and enter your username.</p>
 
-      <form id="profile-form">
-        <fieldset>
-          <legend>Chess platform</legend>
-          <label>
-            <input type="radio" name="platform" value="lichess" checked />
-            Lichess
-          </label>
-          <label>
-            <input type="radio" name="platform" value="chesscom" />
-            Chess.com
-          </label>
-        </fieldset>
+        <form id="profile-form">
+          <fieldset>
+            <legend>Chess platform</legend>
+            <label>
+              <input type="radio" name="platform" value="lichess" checked />
+              Lichess
+            </label>
+            <label>
+              <input type="radio" name="platform" value="chesscom" />
+              Chess.com
+            </label>
+          </fieldset>
 
-        <label class="username-label" for="username">Username</label>
-        <input
-          id="username"
-          name="username"
-          type="text"
-          placeholder="Your username"
-          autocomplete="username"
-          required
-        />
+          <label class="username-label" for="username">Username</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            placeholder="Your username"
+            autocomplete="username"
+            required
+          />
 
-        <button type="submit">Continue</button>
-        <p id="form-message" role="status"></p>
-        <section id="stats" aria-live="polite" hidden></section>
-      </form>
+          <button type="submit">Continue</button>
+          <p id="form-message" role="status"></p>
+          <section id="stats" aria-live="polite" hidden></section>
+        </form>
+
+        <button id="open-picker" class="secondary-button" type="button" hidden>
+          <img src="./img/interface/analysis.svg" alt="" />
+          Select a game
+        </button>
+      </section>
+
+      <section id="game-view" hidden></section>
     </main>
-    <script type="module" src="./js/app.js?v=9"></script>
+
+    <dialog id="game-picker" aria-labelledby="picker-title">
+      <header class="picker-header">
+        <h2 id="picker-title">Select a game</h2>
+        <button class="icon-button" type="button" data-action="close" aria-label="Close">
+          <img src="./img/interface/close.svg" alt="" />
+        </button>
+      </header>
+      <nav class="month-nav">
+        <button class="icon-button" type="button" data-action="previous-month" aria-label="Previous month">
+          <img class="mirrored" src="./img/interface/right_chevron.svg" alt="" />
+        </button>
+        <span class="month-label" aria-live="polite"></span>
+        <button class="icon-button" type="button" data-action="next-month" aria-label="Next month">
+          <img src="./img/interface/right_chevron.svg" alt="" />
+        </button>
+      </nav>
+      <div class="picker-body"></div>
+    </dialog>
+
+    <script type="module" src="./js/app.js?v=11"></script>
   </body>
 </html>

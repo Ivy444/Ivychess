@@ -1,11 +1,43 @@
+import { getStats } from "./api.js";
+import { escapeHtml } from "./dom.js";
+import { createGamePicker } from "./gamePicker.js";
+import { createGameView } from "./gameView.js";
+
+const container = document.querySelector(".container");
+const homeView = document.querySelector("#home-view");
 const form = document.querySelector("#profile-form");
 const usernameInput = document.querySelector("#username");
 const messageElement = document.querySelector("#form-message");
 const statsElement = document.querySelector("#stats");
+const openPickerButton = document.querySelector("#open-picker");
 
 console.info("Ivychess frontend loaded");
 
 const PLATFORM_NAMES = { chesscom: "Chess.com", lichess: "Lichess" };
+
+/** The player whose stats are shown; the game picker lists their games. */
+let currentPlayer = null;
+
+const gameView = createGameView(document.querySelector("#game-view"), {
+  onBack() {
+    gameView.close();
+    container.classList.remove("wide");
+    homeView.hidden = false;
+    openPickerButton.focus();
+  },
+});
+
+const picker = createGamePicker(document.querySelector("#game-picker"), {
+  onSelect(game) {
+    homeView.hidden = true;
+    container.classList.add("wide");
+    gameView.open(game);
+  },
+});
+
+openPickerButton.addEventListener("click", () => {
+  if (currentPlayer) picker.open(currentPlayer.platform, currentPlayer.username);
+});
 
 function formatGameType(value) {
   return value
@@ -26,13 +58,12 @@ function renderStats(stats, platformName) {
       const current = data.last || {};
       const best = data.best || {};
       const record = data.record || {};
+      // Values come from Chess.com / Lichess, so escape them before building HTML.
+      const cell = (value) => `<td>${escapeHtml(value ?? "-")}</td>`;
       return `<tr>
-        <th scope="row">${formatGameType(gameType)}</th>
-        <td>${current.rating ?? "-"}</td>
-        <td>${best.rating ?? "-"}</td>
-        <td>${record.win ?? "-"}</td>
-        <td>${record.loss ?? "-"}</td>
-        <td>${record.draw ?? "-"}</td>
+        <th scope="row">${escapeHtml(formatGameType(gameType))}</th>
+        ${cell(current.rating)}${cell(best.rating)}
+        ${cell(record.win)}${cell(record.loss)}${cell(record.draw)}
       </tr>`;
     })
     .join("");
@@ -64,23 +95,17 @@ form.addEventListener("submit", async (event) => {
   const platform = new FormData(form).get("platform");
   statsElement.replaceChildren();
   statsElement.hidden = true;
+  openPickerButton.hidden = true;
+  currentPlayer = null;
 
   messageElement.textContent = "Loading stats...";
   try {
-    const url = `http://localhost:8000/stats?platform=${platform}&username=${encodeURIComponent(username)}`;
-    console.info("Requesting player stats:", url);
-    const response = await fetch(url);
-    const responseText = await response.text();
-    console.info("Stats response:", response.status, responseText);
-    const result = JSON.parse(responseText);
-
-    if (!response.ok) {
-      throw new Error(result.error || `Request failed with status ${response.status}.`);
-    }
-
+    const stats = await getStats(platform, username);
     messageElement.textContent = `Stats for ${username}:`;
-    renderStats(result, PLATFORM_NAMES[platform]);
+    renderStats(stats, PLATFORM_NAMES[platform]);
     statsElement.hidden = false;
+    currentPlayer = { platform, username };
+    openPickerButton.hidden = false;
   } catch (error) {
     console.error("Could not display player stats:", error);
     messageElement.textContent =
