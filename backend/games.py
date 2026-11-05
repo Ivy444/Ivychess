@@ -1,22 +1,3 @@
-"""Game lists from Chess.com and Lichess in one shared shape, plus PGN replay.
-
-Every game returned by get_games looks like this, whatever site it came from:
-
-    {
-      "platform": "chesscom" | "lichess",
-      "id": str,              # unique per platform
-      "url": str,             # link to the game on the site
-      "end_time": int,        # unix seconds
-      "time_class": "bullet" | "blitz" | "rapid" | "classical" | "correspondence",
-      "white": {"username": str, "rating": int | None},
-      "black": {"username": str, "rating": int | None},
-      "user_color": "white" | "black" | None,
-      "user_result": "win" | "loss" | "draw" | "unknown",
-      "opening": str | None,
-      "pgn": str,
-    }
-"""
-
 import io
 import re
 from datetime import datetime, timezone
@@ -35,7 +16,6 @@ FIRST_YEAR = 2000
 
 
 def parse_month(year, month, today):
-    """Turn query-string year/month into ints; raise ValueError if invalid or in the future."""
     try:
         year, month = int(year), int(month)
     except (TypeError, ValueError):
@@ -48,14 +28,12 @@ def parse_month(year, month, today):
 
 
 def month_range_ms(year, month):
-    """First and last millisecond of a UTC month."""
     start = datetime(year, month, 1, tzinfo=timezone.utc)
     end = datetime(year + month // 12, month % 12 + 1, 1, tzinfo=timezone.utc)
     return int(start.timestamp() * 1000), int(end.timestamp() * 1000) - 1
 
 
 def get_games(platform, username, year, month):
-    """Games of one month, newest first. Raises requests.RequestException on network errors."""
     if platform == "chesscom":
         raw = (ChessComAPI.get_player_games(username, year, month) or {}).get("games", [])
         normalize = normalize_chesscom_game
@@ -83,7 +61,6 @@ def _pgn_header(pgn, key):
 
 
 def _chesscom_opening(pgn):
-    """'.../openings/Italian-Game-Two-Knights-Defense-4.d3' -> 'Italian Game Two Knights Defense'."""
     eco_url = _pgn_header(pgn, "ECOUrl")
     if not eco_url:
         return None
@@ -158,7 +135,6 @@ def normalize_lichess_game(game, username):
 
 
 def replay_pgn(pgn):
-    """Every position of a game, so the browser can show it without knowing chess rules."""
     game = chess.pgn.read_game(io.StringIO(pgn or ""))
     if game is None or game.errors:
         raise ValueError("The game could not be read.")

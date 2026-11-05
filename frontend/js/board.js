@@ -3,7 +3,6 @@ import { el, IMG } from "./dom.js";
 const FILES = "abcdefgh";
 const PIECE_NAMES = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
 
-/** "rnbqkbnr/pppppppp/8/..." -> { e1: "K", e8: "k", ... } */
 function parsePlacement(fen) {
   const pieces = {};
   fen.split(" ")[0].split("/").forEach((row, index) => {
@@ -32,19 +31,56 @@ function pieceImage(code) {
   });
 }
 
-/**
- * A board drawn from FEN strings. It knows no chess rules; it only shows positions.
- *
- *   const board = createBoard();
- *   container.append(board.element);
- *   board.setOrientation("black");
- *   board.setPosition(fen, "e2e4");   // second argument highlights the last move
- */
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function squareCentre(square, orientation) {
+  const file = FILES.indexOf(square[0]);
+  const rank = Number(square[1]);
+  const column = orientation === "white" ? file : 7 - file;
+  const row = orientation === "white" ? 8 - rank : rank - 1;
+  return { x: column + 0.5, y: row + 0.5 };
+}
+
+function arrowPoints(from, to) {
+  const SHAFT = 0.09;
+  const HEAD_WIDTH = 0.27;
+  const HEAD_LENGTH = 0.42;
+  const START_OFFSET = 0.12;
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  const ux = dx / length;
+  const uy = dy / length;
+  const px = -uy;
+  const py = ux;
+
+  const start = { x: from.x + ux * START_OFFSET, y: from.y + uy * START_OFFSET };
+  const neck = { x: to.x - ux * HEAD_LENGTH, y: to.y - uy * HEAD_LENGTH };
+  const at = (base, side) => `${(base.x + px * side).toFixed(3)},${(base.y + py * side).toFixed(3)}`;
+
+  return [
+    at(start, SHAFT),
+    at(neck, SHAFT),
+    at(neck, HEAD_WIDTH),
+    `${to.x.toFixed(3)},${to.y.toFixed(3)}`,
+    at(neck, -HEAD_WIDTH),
+    at(neck, -SHAFT),
+    at(start, -SHAFT),
+  ].join(" ");
+}
+
 export function createBoard() {
   const element = el("div", { className: "board", role: "img" });
   let orientation = "white";
   let squares = {};
   let current = { fen: null, lastMove: null };
+  let bestMove = null;
+
+  const overlay = document.createElementNS(SVG_NS, "svg");
+  overlay.setAttribute("class", "board-overlay");
+  overlay.setAttribute("viewBox", "0 0 8 8");
+  overlay.setAttribute("aria-hidden", "true");
 
   function buildSquares() {
     squares = {};
@@ -62,6 +98,22 @@ export function createBoard() {
         element.append(square);
       });
     });
+    element.append(overlay);
+  }
+
+  function renderBestMove() {
+    overlay.replaceChildren();
+    element.querySelector(".square.best-from")?.classList.remove("best-from");
+    if (!bestMove) return;
+
+    const from = bestMove.slice(0, 2);
+    const to = bestMove.slice(2, 4);
+    squares[from]?.classList.add("best-from");
+
+    const arrow = document.createElementNS(SVG_NS, "polygon");
+    arrow.setAttribute("class", "best-arrow");
+    arrow.setAttribute("points", arrowPoints(squareCentre(from, orientation), squareCentre(to, orientation)));
+    overlay.append(arrow);
   }
 
   function render() {
@@ -75,6 +127,7 @@ export function createBoard() {
       if (pieces[name]) square.append(pieceImage(pieces[name]));
     }
     element.setAttribute("aria-label", `Chess position ${current.fen.split(" ")[0]}`);
+    renderBestMove();
   }
 
   buildSquares();
@@ -96,6 +149,10 @@ export function createBoard() {
     setPosition(fen, lastMove = null) {
       current = { fen, lastMove };
       render();
+    },
+    setBestMove(uci) {
+      bestMove = uci || null;
+      renderBestMove();
     },
   };
 }

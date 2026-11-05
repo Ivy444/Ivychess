@@ -419,7 +419,7 @@ td:first-child {
 
 .game-layout {
   display: grid;
-  grid-template-columns: minmax(0, 520px) minmax(200px, 1fr);
+  grid-template-columns: minmax(0, 552px) minmax(220px, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -455,7 +455,75 @@ td:first-child {
   color: #666;
 }
 
+/* Evaluation bar + board. Everything else in the column is indented by the
+   bar's width so it lines up with the board, not with the bar. */
+.board-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.board-column > .player-slot,
+.board-column > .board-controls,
+.board-column > .analysis-info {
+  padding-left: 32px;
+}
+
+.eval-bar {
+  position: relative;
+  overflow: hidden;
+  background: #403d39;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.eval-bar-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: #f4f4f4;
+  transition: height 0.35s ease-out;
+}
+
+.eval-bar.flipped .eval-bar-fill {
+  top: 0;
+  bottom: auto;
+}
+
+.eval-bar.is-pending .eval-bar-fill {
+  opacity: 0.35;
+}
+
+.eval-bar-label {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  left: 0;
+  color: #f4f4f4;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.eval-bar-label.at-bottom {
+  top: auto;
+  bottom: 4px;
+}
+
+.eval-bar-label.on-white {
+  color: #403d39;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eval-bar-fill {
+    transition: none;
+  }
+}
+
 .board {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   width: 100%;
@@ -483,6 +551,25 @@ td:first-child {
   position: absolute;
   inset: 0;
   background: rgba(155, 199, 0, 0.45);
+}
+
+/* Square the suggested piece starts from: a tint plus a ring, drawn under the piece. */
+.square.best-from {
+  background-image: linear-gradient(rgba(21, 120, 27, 0.35), rgba(21, 120, 27, 0.35));
+  box-shadow: inset 0 0 0 3px rgba(21, 120, 27, 0.85);
+}
+
+.board-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.best-arrow {
+  fill: rgba(21, 120, 27, 0.8);
 }
 
 .piece {
@@ -529,14 +616,114 @@ td:first-child {
   margin-left: 1rem;
 }
 
+.board-controls .best-move-toggle[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+.analysis-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  min-height: 1.9rem;
+  font-size: 0.95rem;
+}
+
+.best-move-text {
+  color: #333;
+  font-weight: 700;
+}
+
+.analysis-status {
+  color: #666;
+}
+
+.analysis-status.error {
+  color: #a12020;
+}
+
+.eval-graph {
+  position: relative;
+  height: 150px;
+  cursor: pointer;
+  background: #403d39;
+  border-radius: 4px;
+}
+
+.eval-plot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.eval-area {
+  fill: #f4f4f4;
+}
+
+.eval-line {
+  fill: none;
+  stroke: #9a9a9a;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.eval-midline {
+  stroke: #8a8a8a;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.eval-current {
+  stroke: #e08a00;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.eval-hover {
+  stroke: #0d3683;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.eval-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  color: #fff;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+  background: #222;
+  border-radius: 4px;
+  transform: translateX(-50%);
+}
+
+.eval-tooltip[hidden] {
+  display: none;
+}
+
+.eval-tooltip-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .moves-column h2 {
   margin: 0 0 0.5rem;
   color: #0d3683;
   font-size: 1.1rem;
 }
 
+.moves-column .advantage-heading {
+  margin-top: 1.25rem;
+}
+
 .move-list {
-  max-height: 520px;
+  max-height: 380px;
   margin: 0;
   padding: 0;
   overflow-y: auto;

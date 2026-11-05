@@ -31,7 +31,6 @@ backend/data/*
 infra/stockfish/*.exe
 infra/stockfish/stockfish
 backend/engine/*.exe
-backend/engine/stockfish
 
 # Generated test and build output
 coverage/
@@ -55,4 +54,4 @@ Thumbs.db
 start-local.cmd
 
 # Local test files
-tests
+tests/

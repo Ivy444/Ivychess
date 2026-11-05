@@ -1,9 +1,3 @@
-/**
- * Small helper for building DOM nodes without innerHTML, so names and openings
- * coming from Chess.com / Lichess can never inject HTML.
- *
- *   el("div", { className: "row", onclick: fn }, "text", childNode)
- */
 export function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(props)) {
@@ -16,7 +10,6 @@ export function el(tag, props = {}, ...children) {
   return node;
 }
 
-/** For the few places that still build HTML strings: makes text safe to insert. */
 export function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -26,7 +19,6 @@ export function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-/** Only allow normal web links, never javascript: or data: URLs coming from an API. */
 export function safeUrl(url) {
   try {
     const parsed = new URL(url);

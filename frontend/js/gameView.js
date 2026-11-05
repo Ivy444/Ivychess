@@ -1,6 +1,7 @@
-import { replayGame } from "./api.js";
+import { analyseGame, replayGame } from "./api.js";
 import { createBoard } from "./board.js";
-import { el, IMG, safeUrl } from "./dom.js";
+import { createEvalBar, createEvalGraph } from "./evalGraph.js";
+import { el, IMG } from "./dom.js";
 
 const RESULT_TEXT = { win: "You won", loss: "You lost", draw: "Draw", unknown: "Unfinished" };
 
@@ -23,19 +24,40 @@ function playerBar(player, color, isUser) {
   );
 }
 
-/**
- * The game view: board, players, move list and navigation.
- *
- *   const view = createGameView(sectionElement, { onBack });
- *   view.open(game);   // game as returned by /games
- *   view.close();
- */
 export function createGameView(section, { onBack }) {
   const board = createBoard();
   let game = null;
   let replay = null;
-  let index = 0; // 0 = start position, n = position after move n
+  let index = 0;
   let openId = 0;
+  let analysis = [];
+  let analysisAbort = null;
+  let showBestMove = true;
+
+  const graph = createEvalGraph({ onSelect: (target) => go(target) });
+  const evalBar = createEvalBar();
+  const bestMoveText = el("span", { className: "best-move-text" });
+  const analysisStatus = el("span", { className: "analysis-status", role: "status" });
+  const analysisInfo = el("div", { className: "analysis-info" }, bestMoveText, analysisStatus);
+
+  const bestMoveIcon = el("img", { src: `${IMG}/interface/visible_enabled.svg`, alt: "" });
+  const bestMoveButton = el(
+    "button",
+    {
+      className: "icon-button best-move-toggle",
+      type: "button",
+      title: "Show best move",
+      "aria-label": "Show best move",
+      "aria-pressed": "true",
+      onclick: () => {
+        showBestMove = !showBestMove;
+        bestMoveButton.setAttribute("aria-pressed", String(showBestMove));
+        bestMoveIcon.src = `${IMG}/interface/${showBestMove ? "visible_enabled" : "visible_disabled"}.svg`;
+        renderAnalysis();
+      },
+    },
+    bestMoveIcon,
+  );
 
   const topBar = el("div", { className: "player-slot" });
   const bottomBar = el("div", { className: "player-slot" });
@@ -55,6 +77,7 @@ export function createGameView(section, { onBack }) {
       board.flip();
       renderPlayers();
     }, "flip-button"),
+    bestMoveButton,
   );
 
   section.replaceChildren(
@@ -73,14 +96,30 @@ export function createGameView(section, { onBack }) {
     el(
       "div",
       { className: "game-layout" },
-      el("div", { className: "board-column" }, topBar, board.element, bottomBar, controls),
-      el("div", { className: "moves-column" }, el("h2", {}, "Moves"), moveList),
+      el(
+        "div",
+        { className: "board-column" },
+        topBar,
+        el("div", { className: "board-row" }, evalBar.element, board.element),
+        bottomBar,
+        controls,
+        analysisInfo,
+      ),
+      el(
+        "div",
+        { className: "moves-column" },
+        el("h2", {}, "Moves"),
+        moveList,
+        el("h2", { className: "advantage-heading" }, "Advantage"),
+        graph.element,
+      ),
     ),
   );
 
   function renderPlayers() {
     const bottom = board.orientation;
     const top = bottom === "white" ? "black" : "white";
+    evalBar.setOrientation(bottom);
     topBar.replaceChildren(playerBar(game[top], top, game.user_color === top));
     bottomBar.replaceChildren(playerBar(game[bottom], bottom, game.user_color === bottom));
   }
@@ -112,13 +151,65 @@ export function createGameView(section, { onBack }) {
     const active = moveList.querySelector(`[data-ply="${index}"]`);
     if (active) {
       active.classList.add("active");
-      // Keep the current move visible inside the list without scrolling the page.
       const listBox = moveList.getBoundingClientRect();
       const moveBox = active.getBoundingClientRect();
       if (moveBox.top < listBox.top) moveList.scrollTop -= listBox.top - moveBox.top;
       if (moveBox.bottom > listBox.bottom) moveList.scrollTop += moveBox.bottom - listBox.bottom;
     } else if (index === 0) {
       moveList.scrollTop = 0;
+    }
+    graph.setCurrent(index);
+    renderAnalysis();
+  }
+
+  function renderAnalysis() {
+    const position = replay && analysis[index];
+    evalBar.setEval(position ? position.eval : null);
+
+    if (!position || !position.best_san) {
+      bestMoveText.textContent = "";
+      board.setBestMove(null);
+      return;
+    }
+    const fen = index === 0 ? replay.start_fen : replay.moves[index - 1].fen;
+    const side = fen.split(" ")[1] === "w" ? "White" : "Black";
+    bestMoveText.textContent = `Best move for ${side}: ${position.best_san}`;
+    board.setBestMove(showBestMove ? position.best_uci : null);
+  }
+
+  async function runAnalysis() {
+    analysisAbort?.abort();
+    const controller = new AbortController();
+    analysisAbort = controller;
+    analysis = [];
+    graph.setGame(replay.moves);
+    graph.setCurrent(index);
+    renderAnalysis();
+    let total = replay.moves.length + 1;
+    analysisStatus.className = "analysis-status";
+    analysisStatus.textContent = "Analysing…";
+
+    try {
+      await analyseGame(
+        game.pgn,
+        (message) => {
+          if (message.type === "start") total = message.total;
+          if (message.type !== "position") return;
+          analysis[message.index] = message;
+          graph.setEval(message.index, message.eval);
+          analysisStatus.textContent = `Analysing… ${message.index + 1} / ${total}`;
+          if (message.index === index) renderAnalysis();
+        },
+        controller.signal,
+      );
+      analysisStatus.textContent = "";
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      analysisStatus.className = "analysis-status error";
+      analysisStatus.replaceChildren(
+        error.message || "The analysis failed.",
+        el("button", { className: "secondary-button inline", type: "button", onclick: runAnalysis }, "Retry"),
+      );
     }
   }
 
@@ -138,7 +229,12 @@ export function createGameView(section, { onBack }) {
 
   async function load() {
     const thisOpen = ++openId;
+    analysisAbort?.abort();
     replay = null;
+    analysis = [];
+    graph.setGame([]);
+    analysisStatus.textContent = "";
+    renderAnalysis();
     moveList.replaceChildren();
     board.setPosition("8/8/8/8/8/8/8/8 w - - 0 1");
     status.hidden = false;
@@ -162,6 +258,7 @@ export function createGameView(section, { onBack }) {
     status.hidden = true;
     renderMoveList();
     go(0);
+    runAnalysis();
   }
 
   return {
@@ -170,11 +267,9 @@ export function createGameView(section, { onBack }) {
       const opponent = game.user_color === "black" ? game.white : game.black;
       title.textContent = `vs ${opponent.username}`;
       const date = new Date(game.end_time * 1000).toLocaleDateString("en-GB", { dateStyle: "medium" });
-      const link = safeUrl(game.url);
       subtitle.replaceChildren(
-        `${RESULT_TEXT[game.user_result]} · ${game.time_class} · ${date}`,
-        link && " · ",
-        link && el("a", { href: link, target: "_blank", rel: "noopener noreferrer" }, "Open on site"),
+        `${RESULT_TEXT[game.user_result]} · ${game.time_class} · ${date} · `,
+        el("a", { href: game.url, target: "_blank", rel: "noopener" }, "Open on site"),
       );
 
       board.setOrientation(game.user_color === "black" ? "black" : "white");
@@ -185,6 +280,7 @@ export function createGameView(section, { onBack }) {
     },
     close() {
       openId += 1;
+      analysisAbort?.abort();
       replay = null;
       section.hidden = true;
       document.removeEventListener("keydown", onKey);

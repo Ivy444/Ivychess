@@ -74,22 +74,15 @@ function gameRow(game, onClick) {
   );
 }
 
-/**
- * The month-by-month game picker popup.
- *
- *   const picker = createGamePicker(dialogElement, { onSelect: (game) => ... });
- *   picker.open("lichess", "someone");
- */
 export function createGamePicker(dialog, { onSelect }) {
   const label = dialog.querySelector(".month-label");
   const body = dialog.querySelector(".picker-body");
   const nextButton = dialog.querySelector('[data-action="next-month"]');
   const cache = new Map();
   let player = null;
-  let shown = null; // { year, month }
+  let shown = null;
   let requestId = 0;
 
-  // Months are UTC months, the same as the backend and both chess sites use.
   function currentMonth() {
     const now = new Date();
     return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
@@ -129,10 +122,9 @@ export function createGamePicker(dialog, { onSelect }) {
         );
         return;
       }
-      // The current month is still growing, so only cache finished months.
       if (!isCurrentMonth(shown)) cache.set(key, games);
     }
-    if (thisRequest !== requestId) return; // the user already moved to another month
+    if (thisRequest !== requestId) return;
 
     if (games.length === 0) {
       setBody(el("p", { className: "picker-state" }, `No games in ${label.textContent}.`));
@@ -159,7 +151,7 @@ export function createGamePicker(dialog, { onSelect }) {
   }
 
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) dialog.close(); // click on the backdrop
+    if (event.target === dialog) dialog.close();
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (action === "close") dialog.close();
     if (action === "previous-month") moveMonth(-1);

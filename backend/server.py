@@ -5,8 +5,10 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import chess.engine
 import requests
 
+import analysis
 import games
 from api.chesscom import ChessComAPI
 from api.lichess import LichessAPI
@@ -20,10 +22,7 @@ PLATFORMS = {
     "lichess": ("Lichess", LichessAPI.get_player_stats),
 }
 MAX_PGN_BYTES = 1_000_000
-# Chess.com and Lichess names only use letters, digits, "_" and "-". Rejecting
-# anything else keeps odd input out of the outgoing URLs and out of the log.
 USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,50}")
-# Only the local frontend may read responses; other websites the user visits may not.
 ALLOWED_ORIGINS = {"http://localhost:5500", "http://127.0.0.1:5500"}
 
 
@@ -35,7 +34,6 @@ class StatsHandler(BaseHTTPRequestHandler):
         self.run_safely(self.route_post)
 
     def run_safely(self, route):
-        """Answer unexpected errors with JSON 500 instead of dropping the connection."""
         try:
             route()
         except Exception:
@@ -59,13 +57,14 @@ class StatsHandler(BaseHTTPRequestHandler):
         handler(query)
 
     def route_post(self):
-        if urlparse(self.path).path != "/replay":
+        routes = {"/replay": self.handle_replay, "/analyse": self.handle_analyse}
+        handler = routes.get(urlparse(self.path).path)
+        if handler is None:
             self.send_json({"error": "Not found."}, 404)
             return
-        self.handle_replay()
+        handler()
 
     def read_platform_and_username(self, query):
-        """Return (platform, username), or send a 400 and return None."""
         username = query.get("username", "")
         platform = query.get("platform", "chesscom")
         if not username:
@@ -123,20 +122,72 @@ class StatsHandler(BaseHTTPRequestHandler):
 
         self.send_json({"games": game_list})
 
-    def handle_replay(self):
+    def read_pgn(self):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = 0
         if not 0 < length <= MAX_PGN_BYTES:
             self.send_json({"error": "A PGN is required."}, 400)
-            return
-        pgn = self.rfile.read(length).decode("utf-8", errors="replace")
+            return None
+        return self.rfile.read(length).decode("utf-8", errors="replace")
 
+    def handle_replay(self):
+        pgn = self.read_pgn()
+        if pgn is None:
+            return
         try:
             self.send_json(games.replay_pgn(pgn))
         except ValueError as error:
             self.send_json({"error": str(error)}, 400)
+
+    def handle_analyse(self):
+        pgn = self.read_pgn()
+        if pgn is None:
+            return
+        try:
+            replay = games.replay_pgn(pgn)
+        except ValueError as error:
+            self.send_json({"error": str(error)}, 400)
+            return
+        try:
+            stockfish = analysis.open_engine(analysis.find_stockfish())
+        except analysis.EngineNotFound as error:
+            self.send_json({"error": str(error)}, 503)
+            return
+        except (OSError, chess.engine.EngineError):
+            logger.exception("Could not start Stockfish")
+            self.send_json({"error": "Stockfish could not be started."}, 503)
+            return
+
+        fens = [replay["start_fen"], *(move["fen"] for move in replay["moves"])]
+        self.close_connection = True
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_cors_headers()
+            self.end_headers()
+            self.write_line({"type": "start", "total": len(fens)})
+            try:
+                for position in analysis.analyse_fens(stockfish, fens):
+                    self.write_line({"type": "position", **position})
+            except chess.engine.EngineError:
+                logger.exception("Stockfish failed during analysis")
+                self.write_line({"type": "error", "message": "The engine stopped unexpectedly."})
+                return
+            self.write_line({"type": "done"})
+        except ConnectionError:
+            logger.info("Browser closed the analysis stream early")
+        finally:
+            try:
+                stockfish.quit()
+            except chess.engine.EngineError:
+                pass
+
+    def write_line(self, data):
+        self.wfile.write(json.dumps(data).encode() + b"\n")
+        self.wfile.flush()
 
     def send_unavailable(self, name):
         self.send_json({"error": f"{name} is temporarily unavailable. Please try again."}, 502)
@@ -145,13 +196,16 @@ class StatsHandler(BaseHTTPRequestHandler):
         body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_cors_headers()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_cors_headers(self):
         origin = self.headers.get("Origin")
         if origin in ALLOWED_ORIGINS:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
 
 
 if __name__ == "__main__":

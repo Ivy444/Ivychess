@@ -15,7 +15,6 @@ console.info("Ivychess frontend loaded");
 
 const PLATFORM_NAMES = { chesscom: "Chess.com", lichess: "Lichess" };
 
-/** The player whose stats are shown; the game picker lists their games. */
 let currentPlayer = null;
 
 const gameView = createGameView(document.querySelector("#game-view"), {
